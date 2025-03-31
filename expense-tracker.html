@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExpensePal - Track Your Income and Expenses</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#f59e0b',
+                        accent: '#10b981',
+                        danger: '#ef4444',
+                        light: '#f7f6f3',
+                        dark: '#191919',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-light dark:bg-dark text-dark dark:text-light font-sans min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-primary text-white p-4">
+        <h1 class="text-2xl font-bold">ExpensePal</h1>
+        <p class="text-sm">Track your income and expenses easily!</p>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8 max-w-4xl mx-auto">
+        <div class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Add New Entry</h2>
+            <div class="flex flex-col md:flex-row gap-4 mb-4">
+                <input type="text" id="entry-name" placeholder="Entry Name" class="flex-1 p-2 border border-gray-300 rounded">
+                <input type="number" id="entry-amount" placeholder="Amount" class="p-2 border border-gray-300 rounded">
+                <input type="date" id="entry-date" class="p-2 border border-gray-300 rounded" value="">
+                <select id="entry-category" class="p-2 border border-gray-300 rounded">
+                    <option value="income">Income</option>
+                    <option value="expense">Expense</option>
+                    <option value="food">Food</option>
+                    <option value="transport">Transport</option>
+                    <option value="entertainment">Entertainment</option>
+                </select>
+                <button id="add-entry" class="bg-secondary text-white p-2 rounded hover:bg-opacity-90">Add</button>
+            </div>
+        </div>
+
+        <div class="mb-8 flex flex-col md:flex-row gap-4">
+            <div>
+                <h2 class="text-xl font-bold mb-4">Filter</h2>
+                <select id="filter-category" class="p-2 border border-gray-300 rounded">
+                    <option value="all">All Categories</option>
+                    <option value="income">Income</option>
+                    <option value="expense">Expense</option>
+                    <option value="food">Food</option>
+                    <option value="transport">Transport</option>
+                    <option value="entertainment">Entertainment</option>
+                </select>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold mb-4">Data</h2>
+                <div class="flex gap-2">
+                    <button id="export-data" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        <i class="fas fa-file-export mr-2"></i>Export
+                    </button>
+                    <button id="import-data" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                        <i class="fas fa-file-import mr-2"></i>Import
+                    </button>
+                    <input type="file" id="import-file" class="hidden" accept=".json">
+                </div>
+            </div>
+                <option value="all">All Categories</option>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+                <option value="food">Food</option>
+                <option value="transport">Transport</option>
+                <option value="entertainment">Entertainment</option>
+            </select>
+        </div>
+
+        <div class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Entries</h2>
+            <div id="entries-container" class="space-y-2">
+                <!-- Entries will be dynamically added here -->
+            </div>
+        </div>
+
+        <div class="mb-8 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-4">Summary</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-green-100 dark:bg-green-900 p-3 rounded">
+                    <p class="text-sm">Total Income</p>
+                    <p id="total-income" class="text-2xl font-bold">$0</p>
+                </div>
+                <div class="bg-red-100 dark:bg-red-900 p-3 rounded">
+                    <p class="text-sm">Total Expenses</p>
+                    <p id="total-expenses" class="text-2xl font-bold">$0</p>
+                </div>
+                <div class="bg-blue-100 dark:bg-blue-900 p-3 rounded">
+                    <p class="text-sm">Balance</p>
+                    <p id="balance" class="text-2xl font-bold">$0</p>
+                </div>
+            </div>
+            <div class="mt-6">
+                <h3 class="text-lg font-semibold mb-3">Spending by Category</h3>
+                <canvas id="categoryChart" class="w-full h-64"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Initialize variables
+        let entries = JSON.parse(localStorage.getItem('entries')) || [];
+        let totalIncome = 0;
+        let totalExpenses = 0;
+
+        // DOM elements
+        const addEntryButton = document.getElementById('add-entry');
+        const entriesContainer = document.getElementById('entries-container');
+        const filterCategory = document.getElementById('filter-category');
+        const totalIncomeDisplay = document.getElementById('total-income');
+        const totalExpensesDisplay = document.getElementById('total-expenses');
+        const balanceDisplay = document.getElementById('balance');
+
+        // Load entries when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            updateEntries();
+            updateSummary();
+        });
+
+        // Add new entry
+        addEntryButton.addEventListener('click', addNewEntry);
+
+        // Filter entries
+        filterCategory.addEventListener('change', updateEntries);
+
+        function addNewEntry() {
+            const name = document.getElementById('entry-name').value.trim();
+            const amount = parseFloat(document.getElementById('entry-amount').value);
+            const dateInput = document.getElementById('entry-date').value;
+            const category = document.getElementById('entry-category').value;
+
+            if (name && !isNaN(amount) && amount > 0) {
+                const entryDate = dateInput ? new Date(dateInput) : new Date();
+                const entry = {
+                    id: Date.now(),
+                    name,
+                    amount,
+                    category,
+                    date: entryDate.toLocaleDateString(),
+                    timestamp: entryDate.getTime()
+                };
+
+                entries.push(entry);
+                saveEntries();
+                updateEntries();
+                updateSummary();
+                clearInputs();
+            }
+        }
+
+        function updateEntries() {
+            const filter = filterCategory.value;
+            let filteredEntries = filter === 'all' 
+                ? entries 
+                : entries.filter(entry => entry.category === filter);
+
+            // Sort entries by date (newest first)
+            filteredEntries.sort((a, b) => b.timestamp - a.timestamp);
+
+            entriesContainer.innerHTML = filteredEntries.map(entry => `
+                <div class="flex justify-between items-center p-3 border border-gray-200 dark:border-gray-700 rounded-lg ${entry.category === 'income' ? 'bg-green-50 dark:bg-green-800' : 'bg-red-50 dark:bg-red-800'}">
+                    <div>
+                        <p class="font-medium">${entry.name}</p>
+                        <p class="text-sm text-gray-500">${entry.category} • ${entry.date}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <p class="font-bold">₹${entry.amount.toFixed(2)}</p>
+                        <button onclick="removeEntry(${entry.id})" class="text-danger hover:text-red-700">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        let categoryChart = null;
+
+        function updateSummary() {
+            totalIncome = entries
+                .filter(entry => entry.category === 'income')
+                .reduce((sum, entry) => sum + entry.amount, 0);
+
+            totalExpenses = entries
+                .filter(entry => entry.category !== 'income')
+                .reduce((sum, entry) => sum + entry.amount, 0);
+
+            totalIncomeDisplay.textContent = `₹${totalIncome.toFixed(2)}`;
+            totalExpensesDisplay.textContent = `₹${totalExpenses.toFixed(2)}`;
+            balanceDisplay.textContent = `₹${(totalIncome - totalExpenses).toFixed(2)}`;
+
+            updateCategoryChart();
+        }
+
+        function updateCategoryChart() {
+            const ctx = document.getElementById('categoryChart');
+            const expenseCategories = ['food', 'transport', 'entertainment', 'expense'];
+            
+            const categoryData = expenseCategories.map(category => {
+                return entries
+                    .filter(entry => entry.category === category)
+                    .reduce((sum, entry) => sum + entry.amount, 0);
+            });
+
+            const backgroundColors = [
+                'rgba(239, 68, 68, 0.7)',  // red
+                'rgba(59, 130, 246, 0.7)', // blue
+                'rgba(245, 158, 11, 0.7)', // yellow
+                'rgba(156, 163, 175, 0.7)' // gray
+            ];
+
+            if (categoryChart) {
+                categoryChart.destroy();
+            }
+
+            categoryChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Food', 'Transport', 'Entertainment', 'Other'],
+                    datasets: [{
+                        data: categoryData,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#6b7280',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function removeEntry(id) {
+            entries = entries.filter(entry => entry.id !== id);
+            saveEntries();
+            updateEntries();
+            updateSummary();
+        }
+
+        function saveEntries() {
+            localStorage.setItem('entries', JSON.stringify(entries));
+        }
+
+        function clearInputs() {
+            document.getElementById('entry-name').value = '';
+            document.getElementById('entry-amount').value = '';
+            document.getElementById('entry-date').value = '';
+        }
+
+        // Export/Import functionality
+        document.getElementById('export-data').addEventListener('click', exportData);
+        document.getElementById('import-data').addEventListener('click', () => {
+            document.getElementById('import-file').click();
+        });
+        document.getElementById('import-file').addEventListener('change', importData);
+
+        function exportData() {
+            const dataStr = JSON.stringify(entries, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `expense-data-${new Date().toISOString().slice(0,10)}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedEntries = JSON.parse(e.target.result);
+                    if (Array.isArray(importedEntries) && importedEntries.length > 0) {
+                        if (confirm(`Import ${importedEntries.length} entries? This will replace your current data.`)) {
+                            entries = importedEntries;
+                            saveEntries();
+                            updateEntries();
+                            updateSummary();
+                        }
+                    } else {
+                        alert('The file does not contain valid expense data.');
+                    }
+                } catch (error) {
+                    alert('Error parsing the file. Please make sure it is a valid JSON file.');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Reset file input
+        }
+    </script>
+</body>
+</html>
